@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCode Step Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        /* Enhanced modern UI styles */
+        :root {
+            /* Modern color palette */
+            --bg-primary: #f8fafc;
+            --bg-secondary: #f1f5f9;
+            --surface-primary: #ffffff;
+            --surface-secondary: #f8fafc;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --accent-success: #22c55e;
+            --accent-warning: #f59e0b;
+            --border-light: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --surface-primary: #1e293b;
+            --surface-secondary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --accent-primary: #60a5fa;
+            --accent-secondary: #3b82f6;
+            --border-light: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        /* New layout structure */
+        .app-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            background: var(--bg-primary);
+            gap: 1px;
+        }
+
+        /* Modern header */
+        .app-header {
+            grid-column: 1 / -1;
+            background: var(--surface-primary);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            border-bottom: 1px solid var(--border-light);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-title svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            color: var(--accent-primary);
+        }
+
+        /* Enhanced sidebar */
+        .sidebar {
+            background: var(--surface-primary);
+            border-right: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1.5rem;
+        }
+
+        /* Modern control panels */
+        .control-panel {
+            background: var(--surface-secondary);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .panel-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Enhanced stats panel */
+        .stats-panel {
+            position: absolute;
+            top: 1.5rem;
+            left: 1.5rem;
+            background: var(--surface-primary);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            min-width: 280px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-light);
+            backdrop-filter: blur(8px);
+        }
+
+        .stats-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .stats-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .stats-value {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Modern buttons */
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            border: 1px solid var(--border-light);
+            background: var(--surface-primary);
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background: var(--surface-secondary);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .button.primary {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+        }
+
+        .button.primary:hover {
+            background: var(--accent-secondary);
+        }
+
+        /* Modern toggle switches */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            position: relative;
+            width: 3rem;
+            height: 1.5rem;
+            appearance: none;
+            background: var(--surface-secondary);
+            border-radius: 1rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .toggle-switch input::before {
+            content: '';
+            position: absolute;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background: white;
+            top: 0.125rem;
+            left: 0.125rem;
+            transition: all 0.3s;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .toggle-switch input:checked {
+            background: var(--accent-primary);
+        }
+
+        .toggle-switch input:checked::before {
+            transform: translateX(1.5rem);
+        }
+
+        /* Modern color picker */
+        .color-picker {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface-secondary);
+            border-radius: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .color-option {
+            aspect-ratio: 1;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+            box-shadow: var(--shadow-md);
+        }
+
+        .color-option.active {
+            border-color: var(--accent-primary);
+            transform: scale(1.1);
+        }
+
+        /* Modern tabs */
+        .view-tabs {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            background: var(--surface-primary);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .view-tab {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+
+        .view-tab:hover {
+            background: var(--surface-secondary);
+        }
+
+        .view-tab.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        /* Main content areas */
+        .visualizer-section {
+            background: var(--surface-primary);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .editor-section {
+            background: var(--surface-primary);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Visualizer styles */
+        .view-content {
+            display: none;
+            height: 100%;
+            position: relative;
+            background: var(--surface-color);
+        }
+
+        .view-content.active {
+            display: flex;
+        }
+
+        .view-content[data-view="3d"] {
+            overflow: hidden;
+        }
+
+        .view-content[data-view="2d"] {
+            flex-direction: column;
+        }
+
+        #visualizer {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+
+        .node {
+            position: absolute;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 16px;
+            width: 220px;
+            box-shadow: 0 2px 4px var(--shadow-sm);
+            transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+
+        .node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px var(--shadow-sm);
+        }
+
+        .node.selected {
+            border: 2px solid var(--accent-primary);
+        }
+
+        /* Editor styles */
+        .editor-toolbar {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--surface-primary);
+        }
+
+        .editor-wrapper {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            background: var(--surface-secondary);
+            border-radius: 0.5rem;
+        }
+
+        #gcodeEditor {
+            width: 100%;
+            height: 100%;
+            padding: 1rem;
+            border: none;
+            resize: none;
+            font-family: monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background: transparent;
+        }
+
+        #gcodeEditor:focus {
+            outline: none;
+        }
+
+        /* Style for search highlights */
+        #gcodeEditor ::selection {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .line-numbers {
+            padding: 20px 8px;
+            background: var(--surface-secondary);
+            border-right: 1px solid var(--border-light);
+            color: var(--text-secondary);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            text-align: right;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* Controls bar */
+        .controls-bar {
+            padding: 16px 24px;
+            gap: 16px;
+            background: var(--surface-secondary);
+        }
+
+        /* Toggle switch */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+
+        .toggle-switch input[type="checkbox"] {
+            position: relative;
+            width: 40px;
+            height: 20px;
+            appearance: none;
+            background: var(--border-light);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked {
+            background: var(--accent-primary);
+        }
+
+        .toggle-switch input[type="checkbox"]::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s;
+        }
+
+        .toggle-switch input[type="checkbox"]:checked::before {
+            left: 22px;
+        }
+
+        /* Loading indicator */
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--surface-primary);
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-sm);
+            text-align: center;
+        }
+
+        /* Add styles for line numbers in the editor */
+        .editor-wrapper {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .line-numbers {
+            padding: 20px 8px;
+            background: var(--surface-secondary);
+            border-right: 1px solid var(--border-light);
+            color: var(--text-secondary);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            text-align: right;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* Add highlight styles */
+        .node.dimmed {
+            opacity: 0.3;
+        }
+
+        .node.search-match {
+            border: 2px solid var(--accent-primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .node.current-match {
+            border: 2px solid var(--accent-primary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Add styles for zoom controls */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 8px;
+            border-right: 1px solid var(--border-light);
+        }
+
+        #zoomLevel {
+            font-size: 13px;
+            color: var(--text-secondary);
+            min-width: 48px;
+            text-align: center;
+        }
+
+        .view-controls {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 10;
+            background: var(--surface-primary);
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-light);
+            min-width: 200px;
+        }
+
+        /* Settings panel */
+        .settings-panel {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 20px;
+            width: 280px;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .settings-group {
+            margin-bottom: 24px;
+        }
+
+        .settings-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .settings-group-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        /* Modern file input styling */
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+            opacity: 0;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface-secondary);
+            border: 1px dashed var(--border-light);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.75rem;
+        }
+
+        .file-input-label:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-primary);
+        }
+
+        .file-input-label svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            color: var(--accent-primary);
+        }
+
+        /* Search bar styles */
+        .search-bar {
+            position: relative;
+            flex: 1;
+            max-width: 300px;
+            margin-left: auto;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.625rem 1rem 0.625rem 2.5rem;
+            background: var(--surface-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1rem;
+            height: 1rem;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        .search-stats {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* File info styling */
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem;
+            background: var(--surface-secondary);
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .file-info svg {
+            width: 1rem;
+            height: 1rem;
+            color: var(--accent-primary);
+        }
+
+        #viewer3d {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+        }
+
+        .flow-toolbar {
+            padding: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            background: var(--surface-primary);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        #stackToggle.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        /* Search highlight styles */
+        #gcodeEditor mark {
+            background-color: var(--accent-primary);
+            color: white;
+            border-radius: 2px;
+            padding: 0 2px;
+            margin: 0 -2px;
+        }
+
+        #gcodeEditor mark.current {
+            background-color: var(--accent-warning);
+            font-weight: bold;
+        }
+
+        .search-highlight {
+            background-color: rgba(59, 130, 246, 0.3);
+            border-radius: 2px;
+        }
+
+        .search-highlight.current {
+            background-color: rgba(59, 130, 246, 0.6);
+            font-weight: bold;
+        }
+
+        .node.stacked {
+            position: relative;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.1),
+                        4px 4px 0 rgba(0,0,0,0.05);
+        }
+
+        .stack-indicator {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--accent-primary);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 6px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .node.stacked .node-description {
+            font-weight: 500;
+        }
+
+        .node.stacked-movement {
+            position: relative;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-light);
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.1);
+        }
+
+        .stack-layer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            border: 1px solid var(--border-light);
+            z-index: -1;
+        }
+
+        .stack-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--accent-primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .node.stacked-movement:hover {
+            transform: translateY(-2px);
+            box-shadow: 2px 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .movement-group {
+            position: relative;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-light);
+        }
+
+        .movement-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: var(--accent-primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 2;
+        }
+
+        .stack-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            border: 1px solid var(--border-light);
+            z-index: 1;
+        }
+
+        .movement-group:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Search highlight styles */
+        #gcodeEditor {
+            white-space: pre;
+            tab-size: 4;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <header class="app-header">
+            <div class="header-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 7l-5 5-5-5M17 13l-5 5-5-5"/>
+                </svg>
+                GCode Visualizer
+            </div>
+            <button class="button" id="themeToggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+            </button>
+        </header>
+
+        <div class="sidebar">
+            <div class="control-panel">
+                <div class="panel-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                    <span class="panel-title">View Settings</span>
+                </div>
+                <div class="settings-group">
+                    <button class="button primary" id="resetView" style="width: 100%; margin-bottom: 12px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12h18M12 3v18"/>
+                        </svg>
+                        Reset View
+                    </button>
+                    <div class="setting-item">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showTravelMoves" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="setting-label">Show Travel Moves</span>
+                    </div>
+                    <div class="setting-item">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showGrid" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="setting-label">Show Grid</span>
+                    </div>
+                    <div class="setting-item">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showAxes" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="setting-label">Show Axes</span>
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <div class="settings-group-title">Colors</div>
+                    <div>Print Moves</div>
+                    <div class="color-picker" id="printMoveColors">
+                        <div class="color-option active" style="background: #ff9500" data-color="#ff9500"></div>
+                        <div class="color-option" style="background: #22c55e" data-color="#22c55e"></div>
+                        <div class="color-option" style="background: #3b82f6" data-color="#3b82f6"></div>
+                    </div>
+                    <div style="margin-top: 8px">Travel Moves</div>
+                    <div class="color-picker" id="travelMoveColors">
+                        <div class="color-option active" style="background: #4444ff" data-color="#4444ff"></div>
+                        <div class="color-option" style="background: #f43f5e" data-color="#f43f5e"></div>
+                        <div class="color-option" style="background: #8b5cf6" data-color="#8b5cf6"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <div class="panel-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h14a2 2 0 012 2v12a4 4 0 01-4 4H7zm0 0v-4m0 4h10m-10 0v-4m10 4v-4"/>
+                    </svg>
+                    <span class="panel-title">File Controls</span>
+                </div>
+                <div class="file-controls">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="gcodeFile" accept=".gcode" class="file-input">
+                        <label for="gcodeFile" class="file-input-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 4v16m-8-8h16"/>
+                            </svg>
+                            Choose GCode File
+                        </label>
+                    </div>
+                    <div class="file-info" id="fileInfo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/>
+                            <path d="M13 2v7h7"/>
+                        </svg>
+                        <span>No file chosen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="visualizer-section">
+            <div class="view-tabs">
+                <button class="view-tab active" data-view="2d">2D Flow</button>
+                <button class="view-tab" data-view="editor">Editor</button>
+                <button class="view-tab" data-view="3d">3D Preview</button>
+            </div>
+            
+            <div class="view-content active" data-view="2d">
+                <div class="flow-toolbar">
+                    <button class="button secondary-button" id="stackToggle" title="Stack Similar Commands">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                        Stack Commands
+                    </button>
+                </div>
+                <div id="visualizer"></div>
+            </div>
+            
+            <div class="view-content" data-view="editor">
+                <div class="editor-toolbar">
+                    <div class="editor-tools">
+                        <button class="button secondary-button" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+                        <button class="button secondary-button" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+                        <button class="button secondary-button" id="stackToggle" title="Stack Similar Movements">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 6h16M4 12h16M4 18h16"/>
+                            </svg>
+                            Stack
+                        </button>
+                        <span class="editor-info" id="lineCount">0 lines</span>
+                    </div>
+                </div>
+                <div class="editor-wrapper">
+                    <div class="line-numbers" id="lineNumbers"></div>
+                    <textarea id="gcodeEditor" placeholder="GCode will appear here..."></textarea>
+                </div>
+            </div>
+            
+            <div class="view-content" data-view="3d">
+                <div id="viewer3d"></div>
+                
+                <!-- Add stats panel -->
+                <div class="stats-panel">
+                    <div class="stats-item">
+                        <span class="stats-label">Print Time:</span>
+                        <span id="printTime">0h 0m</span>
+                    </div>
+                    <div class="stats-item">
+                        <span class="stats-label">Filament Used:</span>
+                        <span id="filamentUsed">0.00m</span>
+                    </div>
+                    <div class="stats-item">
+                        <span class="stats-label">Layer Height:</span>
+                        <span id="layerHeight">0.00mm</span>
+                    </div>
+                    <div class="stats-item">
+                        <span class="stats-label">Current Layer:</span>
+                        <span id="currentLayer">0/0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-bar">
+                <div class="zoom-controls">
+                    <button class="button secondary-button" id="zoomOut" title="Zoom Out">-</button>
+                    <span id="zoomLevel">100%</span>
+                    <button class="button secondary-button" id="zoomIn" title="Zoom In">+</button>
+                </div>
+                <div class="loading-indicator" id="loadingIndicator" style="display: none;">
+                    <div class="spinner"></div>
+                    <div>Processing GCode: <span id="progressText">0%</span></div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="editor-section">
+            <div class="editor-toolbar">
+                <div class="editor-tools">
+                    <button class="button secondary-button" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+                    <button class="button secondary-button" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+                    <button class="button secondary-button" id="stackToggle" title="Stack Similar Movements">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                        Stack
+                    </button>
+                    <span class="editor-info" id="lineCount">0 lines</span>
+                </div>
+            </div>
+            <div class="editor-wrapper">
+                <div class="line-numbers" id="lineNumbers"></div>
+                <textarea id="gcodeEditor" placeholder="GCode will appear here..."></textarea>
+            </div>
+        </aside>
+    </div>
+    <script src="gcode-visualizer.js"></script>
+    <script src="gcode-3d-viewer.js"></script>
+    <script>
+        let viewer3d;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            viewer3d = new GCode3DViewer();
+            
+            const tabs = document.querySelectorAll('.view-tab');
+            const views = document.querySelectorAll('.view-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const viewName = tab.dataset.view;
+                    
+                    tabs.forEach(t => t.classList.remove('active'));
+                    views.forEach(v => {
+                        v.classList.remove('active');
+                    });
+                    
+                    tab.classList.add('active');
+                    const activeView = document.querySelector(`.view-content[data-view="${viewName}"]`);
+                    activeView.classList.add('active');
+                    
+                    if (viewName === '3d' && viewer3d) {
+                        const gcode = document.getElementById('gcodeEditor').value;
+                        if (gcode.trim()) {
+                            viewer3d.visualizeGCode(gcode);
+                        }
+                        window.dispatchEvent(new Event('resize'));
+                    }
+                });
+            });
+
+            const initialView = document.querySelector('.view-tab[data-view="2d"]');
+            if (initialView) {
+                initialView.click();
+            }
+            
+            document.getElementById('showTravelMoves').addEventListener('change', () => {
+                viewer3d.toggleTravelMoves();
+            });
+
+            document.getElementById('showGrid').addEventListener('change', () => {
+                viewer3d.toggleGrid();
+            });
+
+            document.getElementById('showAxes').addEventListener('change', () => {
+                viewer3d.toggleAxes();
+            });
+
+            document.getElementById('resetView').addEventListener('click', () => {
+                viewer3d.resetCamera();
+            });
+
+            const themeToggle = document.getElementById('themeToggle');
+            function setTheme(dark) {
+                document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+                localStorage.setItem('theme', dark ? 'dark' : 'light');
+            }
+            
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                setTheme(savedTheme === 'dark');
+            }
+            
+            themeToggle.addEventListener('click', () => {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                setTheme(!isDark);
+            });
+
+            function setupColorPicker(elementId, callback) {
+                const picker = document.getElementById(elementId);
+                if (!picker) return;
+                
+                picker.querySelectorAll('.color-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const active = picker.querySelector('.active');
+                        if (active) active.classList.remove('active');
+                        option.classList.add('active');
+                        callback(option.dataset.color);
+                    });
+                });
+            }
+
+            setupColorPicker('printMoveColors', (color) => {
+                viewer3d.setPrintMoveColor(color);
+            });
+
+            setupColorPicker('travelMoveColors', (color) => {
+                viewer3d.setTravelMoveColor(color);
+            });
+
+            const fileInput = document.getElementById('gcodeFile');
+            const fileInfo = document.getElementById('fileInfo');
+            
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const fileSize = file.size / 1024 < 1024 
+                        ? `${(file.size / 1024).toFixed(1)} KB`
+                        : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+                        
+                    fileInfo.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/>
+                            <path d="M13 2v7h7"/>
+                        </svg>
+                        <span>${file.name} (${fileSize})</span>
+                    `;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const gcode = event.target.result;
+                        viewer3d.visualizeGCode(gcode);
+                        updateStats(gcode);
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+            const stackToggle = document.getElementById('stackToggle');
+            let gCodeVisualizer = new GCodeVisualizer(); 
+            
+            stackToggle.addEventListener('click', () => {
+                gCodeVisualizer.isStacked = !gCodeVisualizer.isStacked;
+                stackToggle.classList.toggle('active');
+                const gcode = document.getElementById('gcodeEditor').value;
+                if (gcode) {
+                    gCodeVisualizer.parseGCode(gcode);
+                }
+            });
+
+            const searchInput = document.getElementById('searchInput');
+            const searchStats = document.getElementById('searchStats');
+            const gcodeEditor = document.getElementById('gcodeEditor');
+            let currentHighlight = -1;
+            let searchResults = [];
+
+            searchInput.addEventListener('input', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const editor = document.getElementById('gcodeEditor');
+                
+                if (searchTerm.length < 3) {
+                    searchResults = [];
+                    searchStats.textContent = 'Enter at least 3 characters...';
+                    return;
+                }
+
+                const text = editor.value;
+                const lines = text.split('\n');
+                searchResults = [];
+                currentHighlight = -1;
+
+                lines.forEach((line, lineIndex) => {
+                    const lowerLine = line.toLowerCase();
+                    let pos = -1;
+                    while ((pos = lowerLine.indexOf(searchTerm, pos + 1)) !== -1) {
+                        searchResults.push({
+                            lineIndex,
+                            position: pos,
+                            length: searchTerm.length
+                        });
+                    }
+                });
+
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = text;
+                
+                searchResults.forEach((result, index) => {
+                    const lineStart = lines.slice(0, result.lineIndex).join('\n').length + 
+                        (result.lineIndex > 0 ? 1 : 0);
+                    const start = lineStart + result.position;
+                    const end = start + result.length;
+                    
+                    const before = tempTextarea.value.substring(0, start);
+                    const match = tempTextarea.value.substring(start, end);
+                    const after = tempTextarea.value.substring(end);
+                    
+                    tempTextarea.value = before + '→' + match + '←' + after;
+                });
+
+                editor.value = tempTextarea.value;
+                searchStats.textContent = `${searchResults.length} matches`;
+                
+                if (searchResults.length > 0) {
+                    highlightNext();
+                }
+            });
+
+            function highlightNext() {
+                if (searchResults.length === 0) return;
+                
+                currentHighlight = (currentHighlight + 1) % searchResults.length;
+                const result = searchResults[currentHighlight];
+                
+                const lineHeight = 20; 
+                gcodeEditor.scrollTop = result.lineIndex * lineHeight - gcodeEditor.clientHeight / 2;
+                
+                const lines = gcodeEditor.value.split('\n');
+                const start = lines.slice(0, result.lineIndex).join('\n').length + 
+                    (result.lineIndex > 0 ? 1 : 0) + result.position;
+                const end = start + result.length;
+                
+                gcodeEditor.setSelectionRange(start, end);
+                gcodeEditor.focus();
+
+                searchStats.textContent = `${currentHighlight + 1}/${searchResults.length} matches`;
+            }
+
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && searchResults.length > 0) {
+                    e.preventDefault();
+                    highlightNext();
+                }
+            });
+        });
+
+        function updateStats(gcode) {
+            if (!gcode) return;
+
+            const lines = gcode.split('\n');
+            let totalExtrusion = 0;
+            let maxZ = 0;
+            let currentZ = 0;
+            let printTime = 0;
+            
+            lines.forEach(line => {
+                line = line.toUpperCase();
+                
+                const eMatch = line.match(/E([-\d.]+)/);
+                if (eMatch) {
+                    const eValue = parseFloat(eMatch[1]);
+                    if (eValue > 0) {
+                        totalExtrusion += eValue;
+                    }
+                }
+                
+                const zMatch = line.match(/Z([-\d.]+)/);
+                if (zMatch) {
+                    currentZ = parseFloat(zMatch[1]);
+                    maxZ = Math.max(maxZ, currentZ);
+                }
+                
+                if (line.match(/G[0-1]/)) {
+                    printTime += 0.1; 
+                }
+            });
+            
+            document.getElementById('printTime').textContent = 
+                `${Math.floor(printTime / 3600)}h ${Math.floor((printTime % 3600) / 60)}m`;
+            
+            document.getElementById('filamentUsed').textContent = 
+                `${(totalExtrusion / 1000).toFixed(2)}m`;
+            
+            const layerHeight = maxZ > 0 ? (maxZ / Math.ceil(maxZ / 0.2)).toFixed(2) : 0;
+            document.getElementById('layerHeight').textContent = 
+                `${layerHeight}mm`;
+            
+            document.getElementById('currentLayer').textContent = 
+                `${Math.ceil(currentZ / layerHeight)}/${Math.ceil(maxZ / layerHeight)}`;
+        }
+    </script>
+</body>
+</html> 
