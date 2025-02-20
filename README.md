@@ -82,5 +82,4 @@ A powerful web-based GCode visualization tool that provides both 2D flow visuali
 - `GCodeVisualizer` - Handles 2D visualization and command parsing
 - `GCode3DViewer` - Manages 3D visualization and rendering
 
-## Disclaimer
- - This README was made with AI
+
